@@ -131,6 +131,8 @@ function formatResultForMessage(result: string | null): string | null {
   const scoreMatch = s.match(/^P\((\d+\/\d+)\)$/) ?? s.match(/^(\d+\/\d+)$/)
   if (scoreMatch) return `완료(${scoreMatch[1]})`
   if (s === 'X') return '미완료'
+  // 요일 단독 입력 → "미완료, {요일} 응시 예정입니다."
+  if (DAY_MAP[s]) return `미완료, ${DAY_MAP[s]} 응시 예정입니다.`
   // "진행중, 금" → "진행중이며, 금요일 완료 예정입니다."
   const m = s.match(/^진행중,\s*(.+)$/)
   if (m) {
@@ -149,6 +151,8 @@ function generateMessage(
   columns: TestColumn[],
   recordId: string,
   resultMap: Record<string, TestResult>,
+  homeworkText: string,
+  homeworkStatus: 'done' | 'undone',
 ): string {
   const today = new Date()
   const m = today.getMonth() + 1
@@ -175,6 +179,12 @@ function generateMessage(
     .filter(Boolean)
     .join('\n\n')
 
+  const homeworkLine = homeworkText
+    ? `${lineNum}. 숙제:${homeworkText}\n: ${homeworkStatus === 'done' ? '완료' : '미완료'}`
+    : ''
+
+  const bodyLines = [testLines, homeworkLine].filter(Boolean).join('\n\n')
+
   return [
     '안녕하세요😃',
     'JEY 영어 능동관 조교 선생님입니다!',
@@ -184,7 +194,7 @@ function generateMessage(
     '',
     `${m}월 ${d}일 ${dow}`,
     '',
-    testLines,
+    bodyLines,
     '',
     '알차게 하루 보낸 자녀에게',
     '많은 격려 부탁드립니다!',
@@ -470,6 +480,12 @@ export default function SessionView({ session, students: initialStudents, initia
   const [activeColumn, setActiveColumn] = useState<TestColumn | null>(null)
   const [activeStudent, setActiveStudent] = useState<Student | null>(null)
 
+  // 공통 이전 숙제 (이전 세션의 next_homework를 초기값으로, 수정 가능)
+  const [prevHomework, setPrevHomework] = useState(() => {
+    const idx = allSessions.findIndex(s => s.id === session.id)
+    return idx >= 0 ? (allSessions[idx + 1]?.next_homework ?? '') : ''
+  })
+
   // 공통 다음 숙제
   const [nextHomework, setNextHomework] = useState(session.next_homework ?? '')
 
@@ -692,7 +708,7 @@ export default function SessionView({ session, students: initialStudents, initia
   async function handleCopyMessage(student: Student) {
     const record = getRecord(student.id)
     const firstName = student.name.length > 1 ? student.name.slice(1) : student.name
-    const msg = generateMessage(firstName, columnsRef.current, record.id, resultMapRef.current)
+    const msg = generateMessage(firstName, columnsRef.current, record.id, resultMapRef.current, prevHomework, record.homework_status)
     await navigator.clipboard.writeText(msg)
     if (student.kakao_chat_url) {
       window.open(student.kakao_chat_url, '_blank')
@@ -761,18 +777,14 @@ export default function SessionView({ session, students: initialStudents, initia
       </header>
 
       {/* ── 공통 이전 숙제 ── */}
-      {(() => {
-        const idx = allSessions.findIndex(s => s.id === session.id)
-        const prevHomework = idx >= 0 ? (allSessions[idx + 1]?.next_homework ?? '') : ''
-        return (
-          <div className="bg-[#FFFBEB] border-b border-[#FDE68A] px-5 py-2 flex items-center gap-3">
-            <span className="text-[12px] font-semibold text-[#92400E] shrink-0">이전 숙제</span>
-            <span className={`text-[13px] ${prevHomework ? 'text-[#92400E]' : 'text-[#D1A96A]'}`}>
-              {prevHomework || '이전 수업 숙제가 없습니다'}
-            </span>
-          </div>
-        )
-      })()}
+      <div className="bg-[#FFFBEB] border-b border-[#FDE68A] px-5 py-2 flex items-center gap-3">
+        <span className="text-[12px] font-semibold text-[#92400E] shrink-0">이전 숙제</span>
+        <EditableCell
+          value={prevHomework}
+          placeholder="이전 수업 숙제가 없습니다"
+          onSave={setPrevHomework}
+        />
+      </div>
 
       {/* ── 공통 다음 숙제 ── */}
       <div className="bg-[#FFFBEB] border-b border-[#FDE68A] px-5 py-2 flex items-center gap-3">
