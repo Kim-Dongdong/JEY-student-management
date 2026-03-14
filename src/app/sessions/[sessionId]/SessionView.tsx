@@ -50,6 +50,7 @@ type Student = {
   name: string
   note: string | null
   order_num: number
+  kakao_chat_url: string | null
 }
 type TestColumn = {
   id: string
@@ -118,30 +119,58 @@ function formatDate(dateStr: string, timeRange?: string | null) {
 
 const KO_WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
 
+const DAY_MAP: Record<string, string> = {
+  '월': '월요일', '화': '화요일', '수': '수요일', '목': '목요일',
+  '금': '금요일', '토': '토요일', '일': '일요일',
+}
+
 function formatResultForMessage(result: string | null): string | null {
   if (!result?.trim()) return null
   const s = result.trim()
-  if (s === 'P' || s.startsWith('P(') || /^\d+\/\d+/.test(s)) return '완료'
+  if (s === 'P') return '완료'
+  const scoreMatch = s.match(/^P\((\d+\/\d+)\)$/) ?? s.match(/^(\d+\/\d+)$/)
+  if (scoreMatch) return `완료(${scoreMatch[1]})`
   if (s === 'X') return '미완료'
-  return `${s}날 진행 예정입니다.`
+  // "진행중, 금" → "진행중이며, 금요일 완료 예정입니다."
+  const m = s.match(/^진행중,\s*(.+)$/)
+  if (m) {
+    const day = m[1].trim()
+    return `진행중이며, ${DAY_MAP[day] ?? day} 완료 예정입니다.`
+  }
+  return s
+}
+
+function isSpecialDayComplete(s: string): boolean {
+  return /^[월화수목금토일] 완료$/.test(s.trim())
 }
 
 function generateMessage(
   studentName: string,
-  dateStr: string,
   columns: TestColumn[],
   recordId: string,
   resultMap: Record<string, TestResult>,
 ): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dow = KO_WEEKDAYS[new Date(y, m - 1, d).getDay()]
+  const today = new Date()
+  const m = today.getMonth() + 1
+  const d = today.getDate()
+  const dow = KO_WEEKDAYS[today.getDay()]
 
+  const hasSpecialDay = columns.some(col => {
+    const r = resultMap[`${recordId}:${col.id}`]?.result ?? null
+    return r && isSpecialDayComplete(r)
+  })
+
+  let lineNum = 1
   const testLines = columns
-    .map((col, i) => {
+    .map(col => {
       const result = resultMap[`${recordId}:${col.id}`]?.result ?? null
+      if (hasSpecialDay) {
+        if (!result || !isSpecialDayComplete(result)) return null
+        return `${lineNum++}. ${col.name}\n: 완료`
+      }
       const formatted = formatResultForMessage(result)
       if (!formatted) return null
-      return `${i + 1}. ${col.name}\n: ${formatted}`
+      return `${lineNum++}. ${col.name}\n: ${formatted}`
     })
     .filter(Boolean)
     .join('\n\n')
@@ -663,8 +692,11 @@ export default function SessionView({ session, students: initialStudents, initia
   async function handleCopyMessage(student: Student) {
     const record = getRecord(student.id)
     const firstName = student.name.length > 1 ? student.name.slice(1) : student.name
-    const msg = generateMessage(firstName, session.date, columnsRef.current, record.id, resultMapRef.current)
+    const msg = generateMessage(firstName, columnsRef.current, record.id, resultMapRef.current)
     await navigator.clipboard.writeText(msg)
+    if (student.kakao_chat_url) {
+      window.open(student.kakao_chat_url, '_blank')
+    }
     setSentSet(prev => {
       const next = new Set(prev)
       if (next.has(student.id)) next.delete(student.id)
