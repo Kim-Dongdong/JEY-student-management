@@ -7,6 +7,7 @@ CREATE TABLE classes (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        TEXT NOT NULL,
   schedule    TEXT NOT NULL, -- 예: "월/수 19:00~20:30"
+  order_num   INTEGER NOT NULL DEFAULT 0,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -32,6 +33,7 @@ CREATE TABLE sessions (
 
 -- 기존 DB에 컬럼 추가할 때 실행:
 -- ALTER TABLE sessions ADD COLUMN IF NOT EXISTS time_range TEXT;
+-- ALTER TABLE classes ADD COLUMN IF NOT EXISTS order_num INTEGER NOT NULL DEFAULT 0;
 
 -- 테스트 항목 테이블 (회차별 동적 컬럼)
 -- 예: "단어 TEST", "선택형 테스트", "7대 영역 7~10"

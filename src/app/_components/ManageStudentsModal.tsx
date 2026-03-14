@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 type Student = {
   id: string
@@ -15,6 +24,54 @@ interface Props {
   classId: string
   className: string
   onClose: () => void
+}
+
+function SortableStudentItem({ student, onDelete, onKakaoSave }: {
+  student: Student
+  onDelete: () => void
+  onKakaoSave: (url: string | null) => Promise<void>
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: student.id })
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="flex items-center justify-between px-3 py-3 rounded-xl bg-[#F9FAFB] border border-[#F2F4F6]"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="shrink-0 w-6 h-full flex items-center justify-center text-[#D1D6DB] hover:text-[#6B7684] cursor-grab active:cursor-grabbing touch-none mr-2 text-[16px]"
+      >
+        ⠿
+      </button>
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="text-[15px] font-semibold text-[#191F28]">{student.name}</span>
+        {student.note && (
+          <span className="text-[12px] text-[#ADB5BD] mt-0.5 truncate">{student.note}</span>
+        )}
+        <input
+          type="url"
+          defaultValue={student.kakao_chat_url ?? ''}
+          placeholder="카카오 채팅 URL"
+          onBlur={async e => {
+            const url = e.target.value.trim() || null
+            if (url === (student.kakao_chat_url ?? null)) return
+            await onKakaoSave(url)
+          }}
+          className="mt-1.5 h-[34px] px-3 rounded-lg border border-[#E5E8EB] bg-white text-[12px] text-[#191F28] placeholder:text-[#C5CCD6] outline-none focus:border-[#3182F6] transition-all"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="ml-3 shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-[#ADB5BD] hover:text-[#F04452] hover:bg-[#FFF0F1] text-[12px] transition-all"
+      >
+        ✕
+      </button>
+    </li>
+  )
 }
 
 const inputCls =
@@ -81,6 +138,16 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
     setAdding(false)
   }
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  async function handleStudentDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const reordered = arrayMove(students, students.findIndex(s => s.id === active.id), students.findIndex(s => s.id === over.id))
+    setStudents(reordered)
+    await Promise.all(reordered.map((s, i) => supabase.from('students').update({ order_num: i + 1 }).eq('id', s.id)))
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return
     setDeleting(true)
@@ -119,40 +186,23 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
           ) : students.length === 0 ? (
             <p className="text-center text-[14px] text-[#ADB5BD] py-8">아직 등록된 학생이 없어요.</p>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {students.map(student => (
-                <li
-                  key={student.id}
-                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#F9FAFB] border border-[#F2F4F6]"
-                >
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <span className="text-[15px] font-semibold text-[#191F28]">{student.name}</span>
-                    {student.note && (
-                      <span className="text-[12px] text-[#ADB5BD] mt-0.5 truncate">{student.note}</span>
-                    )}
-                    <input
-                      type="url"
-                      defaultValue={student.kakao_chat_url ?? ''}
-                      placeholder="카카오 채팅 URL"
-                      onBlur={async e => {
-                        const url = e.target.value.trim() || null
-                        if (url === (student.kakao_chat_url ?? null)) return
+            <DndContext id="student-manage-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStudentDragEnd}>
+              <SortableContext items={students.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                <ul className="flex flex-col gap-2">
+                  {students.map(student => (
+                    <SortableStudentItem
+                      key={student.id}
+                      student={student}
+                      onDelete={() => setDeleteTarget(student)}
+                      onKakaoSave={async url => {
                         await supabase.from('students').update({ kakao_chat_url: url }).eq('id', student.id)
                         setStudents(prev => prev.map(s => s.id === student.id ? { ...s, kakao_chat_url: url } : s))
                       }}
-                      className="mt-1.5 h-[34px] px-3 rounded-lg border border-[#E5E8EB] bg-white text-[12px] text-[#191F28] placeholder:text-[#C5CCD6] outline-none focus:border-[#3182F6] transition-all"
                     />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(student)}
-                    className="ml-3 shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-[#ADB5BD] hover:text-[#F04452] hover:bg-[#FFF0F1] text-[12px] transition-all"
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
-            </ul>
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
 

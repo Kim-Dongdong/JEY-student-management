@@ -8,7 +8,7 @@ export default async function HomePage() {
   const { data: classes } = await supabase
     .from('classes')
     .select('*')
-    .order('created_at', { ascending: true })
+    .order('order_num', { ascending: true })
 
   return <MainClient initialClasses={(classes ?? []) as Class[]} />
 }
