@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { login } from './actions'
 
 interface Props {
@@ -8,8 +9,13 @@ export default async function LoginPage({ searchParams }: Props) {
   const { error } = await searchParams
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-white flex items-start justify-center px-4 pt-16">
       <div className="w-full max-w-[400px]">
+        {/* 로고 */}
+        <div className="flex justify-center mb-12">
+          <Image src="/logo.png" alt="JEY어학원" width={320} height={160} style={{ width: 320, height: 'auto' }} priority />
+        </div>
+
         {/* 헤더 */}
         <div className="mb-10">
           <h1 className="text-[28px] font-bold text-[#191F28] tracking-tight leading-tight">
