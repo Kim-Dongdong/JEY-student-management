@@ -50,6 +50,7 @@ type Student = {
   name: string
   note: string | null
   order_num: number
+  kakao_chat_url: string | null
 }
 type TestColumn = {
   id: string
@@ -665,6 +666,9 @@ export default function SessionView({ session, students: initialStudents, initia
     const firstName = student.name.length > 1 ? student.name.slice(1) : student.name
     const msg = generateMessage(firstName, session.date, columnsRef.current, record.id, resultMapRef.current)
     await navigator.clipboard.writeText(msg)
+    if (student.kakao_chat_url) {
+      window.open(student.kakao_chat_url, '_blank')
+    }
     setSentSet(prev => {
       const next = new Set(prev)
       if (next.has(student.id)) next.delete(student.id)

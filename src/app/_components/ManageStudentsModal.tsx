@@ -8,6 +8,7 @@ type Student = {
   name: string
   note: string | null
   order_num: number
+  kakao_chat_url: string | null
 }
 
 interface Props {
@@ -25,6 +26,7 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
   const [note, setNote] = useState('')
+  const [kakaoChatUrl, setKakaoChatUrl] = useState('')
   const [adding, setAdding] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -49,7 +51,7 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
     const maxOrder = students.reduce((max, s) => Math.max(max, s.order_num), 0)
     const { data: newStudent, error } = await supabase
       .from('students')
-      .insert({ class_id: classId, name: name.trim(), note: note.trim() || null, order_num: maxOrder + 1 })
+      .insert({ class_id: classId, name: name.trim(), note: note.trim() || null, kakao_chat_url: kakaoChatUrl.trim() || null, order_num: maxOrder + 1 })
       .select()
       .single()
 
@@ -75,6 +77,7 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
     setStudents(prev => [...prev, newStudent as Student])
     setName('')
     setNote('')
+    setKakaoChatUrl('')
     setAdding(false)
   }
 
@@ -122,11 +125,23 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
                   key={student.id}
                   className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#F9FAFB] border border-[#F2F4F6]"
                 >
-                  <div className="flex flex-col min-w-0">
+                  <div className="flex flex-col min-w-0 flex-1">
                     <span className="text-[15px] font-semibold text-[#191F28]">{student.name}</span>
                     {student.note && (
                       <span className="text-[12px] text-[#ADB5BD] mt-0.5 truncate">{student.note}</span>
                     )}
+                    <input
+                      type="url"
+                      defaultValue={student.kakao_chat_url ?? ''}
+                      placeholder="카카오 채팅 URL"
+                      onBlur={async e => {
+                        const url = e.target.value.trim() || null
+                        if (url === (student.kakao_chat_url ?? null)) return
+                        await supabase.from('students').update({ kakao_chat_url: url }).eq('id', student.id)
+                        setStudents(prev => prev.map(s => s.id === student.id ? { ...s, kakao_chat_url: url } : s))
+                      }}
+                      className="mt-1.5 h-[34px] px-3 rounded-lg border border-[#E5E8EB] bg-white text-[12px] text-[#191F28] placeholder:text-[#C5CCD6] outline-none focus:border-[#3182F6] transition-all"
+                    />
                   </div>
                   <button
                     type="button"
@@ -161,6 +176,13 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
                 className={inputCls + ' flex-1'}
               />
             </div>
+            <input
+              type="url"
+              value={kakaoChatUrl}
+              onChange={e => setKakaoChatUrl(e.target.value)}
+              placeholder="카카오 채팅 URL (선택)"
+              className={inputCls}
+            />
             <button
               type="submit"
               disabled={adding || !name.trim()}
