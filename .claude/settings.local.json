@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"C:/Users/Admin/Desktop/학생관리시스템\" && npx create-next-app@14 . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git 2>&1)",
+      "Read(//c/Users/Admin/Desktop/**)",
+      "Bash(npx create-next-app@14 student-mgmt --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
+      "Bash(cp -r \"C:/Users/Admin/Desktop/student-mgmt/.\" \"C:/Users/Admin/Desktop/학생관리시스템/\" && rm -rf \"C:/Users/Admin/Desktop/student-mgmt\")",
+      "Bash(cd \"C:/Users/Admin/Desktop/학생관리시스템\" && npm install @supabase/supabase-js @supabase/ssr 2>&1)",
+      "Bash(cd \"C:/Users/Admin/Desktop/학생관리시스템\" && npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities 2>&1 | tail -5)",
+      "Bash(cd \"C:/Users/Admin/Desktop/학생관리시스템\" && npx tsc --noEmit 2>&1 | head -40)",
+      "Bash(cd \"C:/Users/Admin/Desktop/학생관리시스템\" && npx tsc --noEmit 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Admin\\\\Desktop\\\\학생관리시스템\" && npx tsc --noEmit 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Admin\\\\Desktop\\\\학생관리시스템\" && npm run dev)",
+      "Bash(npx kill-port:*)",
+      "Bash(cd \"C:\\\\Users\\\\computer\\\\Desktop\\\\학생관리시스템\" && npm run build 2>&1)"
+    ]
+  }
+}
