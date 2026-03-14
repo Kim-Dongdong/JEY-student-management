@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -210,7 +210,7 @@ const ATTENDANCE_STYLE = {
 
 /* ─────────────────── Cell Components ─────────────────── */
 
-function AttendanceCell({ attendance, onChange }: {
+const AttendanceCell = memo(function AttendanceCell({ attendance, onChange }: {
   attendance: 'present' | 'absent' | 'late'
   onChange: (v: 'present' | 'absent' | 'late') => void
 }) {
@@ -221,9 +221,9 @@ function AttendanceCell({ attendance, onChange }: {
       {label}
     </button>
   )
-}
+})
 
-function HomeworkCell({ status, onChange }: {
+const HomeworkCell = memo(function HomeworkCell({ status, onChange }: {
   status: 'done' | 'undone'
   onChange: (v: 'done' | 'undone') => void
 }) {
@@ -237,9 +237,9 @@ function HomeworkCell({ status, onChange }: {
       {done ? '✓' : '✗'}
     </button>
   )
-}
+})
 
-function EditableCell({ value, placeholder = '-', onSave }: {
+const EditableCell = memo(function EditableCell({ value, placeholder = '-', onSave }: {
   value: string; placeholder?: string; onSave: (v: string) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -269,7 +269,7 @@ function EditableCell({ value, placeholder = '-', onSave }: {
       {value || <span className="text-[#C5CCD6]">{placeholder}</span>}
     </div>
   )
-}
+})
 
 /* ─────────────────── Result Cell (portal popover) ─────────────────── */
 
@@ -346,7 +346,7 @@ function ResultCellEditor({ anchor, value, onSave, onClose }: {
   )
 }
 
-function ResultCell({ value, onSave }: { value: string | null; onSave: (v: string) => void }) {
+const ResultCell = memo(function ResultCell({ value, onSave }: { value: string | null; onSave: (v: string) => void }) {
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState({ top: 0, left: 0 })
   const cellRef = useRef<HTMLDivElement>(null)
@@ -377,11 +377,25 @@ function ResultCell({ value, onSave }: { value: string | null; onSave: (v: strin
       {open && <ResultCellEditor anchor={anchor} value={value} onSave={handleSave} onClose={() => setOpen(false)} />}
     </div>
   )
-}
+})
 
 /* ─────────────────── Sortable Column Header ─────────────────── */
 
-function SortableColumnHeader({ column, onEdit, onDelete }: {
+/* ─────────────────── Result Cell Wrapper (per-column memo) ─────────────────── */
+
+const ResultCellWrapper = memo(function ResultCellWrapper({ studentId, colId, result, onResultChange }: {
+  studentId: string
+  colId: string
+  result: TestResult | undefined
+  onResultChange: (studentId: string, colId: string, v: string) => void
+}) {
+  const onSave = useCallback((v: string) => onResultChange(studentId, colId, v), [studentId, colId, onResultChange])
+  return <ResultCell value={result?.result ?? null} onSave={onSave} />
+})
+
+/* ─────────────────── Sortable Column Header ─────────────────── */
+
+const SortableColumnHeader = memo(function SortableColumnHeader({ column, onEdit, onDelete }: {
   column: TestColumn; onEdit: () => void; onDelete: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id })
@@ -401,7 +415,90 @@ function SortableColumnHeader({ column, onEdit, onDelete }: {
       </div>
     </th>
   )
-}
+})
+
+/* ─────────────────── Memoized Student Row ─────────────────── */
+
+const StudentRow = memo(function StudentRow({ student, record, columns, resultMap, sent,
+  onAttendanceChange, onHomeworkChange, onResultChange, onNoteChange, onCopyMessage, onDeleteClick,
+}: {
+  student: Student
+  record: StudentRecord
+  columns: TestColumn[]
+  resultMap: Record<string, TestResult>
+  sent: boolean
+  onAttendanceChange: (studentId: string, v: 'present' | 'absent' | 'late') => void
+  onHomeworkChange: (studentId: string, v: 'done' | 'undone') => void
+  onResultChange: (studentId: string, colId: string, v: string) => void
+  onNoteChange: (studentId: string, v: string) => void
+  onCopyMessage: (student: Student) => void
+  onDeleteClick: (student: Student) => void
+}) {
+  const handleAttendance = useCallback((v: 'present' | 'absent' | 'late') => onAttendanceChange(student.id, v), [student.id, onAttendanceChange])
+  const handleHomework = useCallback((v: 'done' | 'undone') => onHomeworkChange(student.id, v), [student.id, onHomeworkChange])
+  const handleNote = useCallback((v: string) => onNoteChange(student.id, v), [student.id, onNoteChange])
+  const handleCopy = useCallback(() => onCopyMessage(student), [student, onCopyMessage])
+  const handleDelete = useCallback(() => onDeleteClick(student), [student, onDeleteClick])
+
+  return (
+    <SortableStudentRow student={student}>
+      <td className="sticky left-9 z-10 bg-white group-hover:bg-[#FAFAFA] border-b border-r border-[#E5E8EB] px-2 py-1.5 w-[136px] min-w-[136px] transition-colors">
+        <div className="flex items-center gap-0.5 min-w-0">
+          <span className="text-[14px] font-bold text-[#191F28] truncate flex-1">{student.name}</span>
+          <button type="button" onClick={handleCopy}
+            className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[15px] font-bold transition-all ${
+              sent ? 'text-[#0BB070] bg-[#EDFDF4] hover:bg-[#C6F6E0]'
+                   : 'text-[#ADB5BD] hover:text-[#3182F6] hover:bg-[#EBF3FF]'
+            }`}
+            title={sent ? '발송 완료 (재클릭 시 해제)' : '문자 복사 및 발송 체크'}>
+            {sent ? '✓' : '📋'}
+          </button>
+          <button type="button" onClick={handleDelete}
+            className="shrink-0 opacity-0 group-hover:opacity-100 w-5 h-5 rounded flex items-center justify-center text-[#ADB5BD] hover:text-[#F04452] hover:bg-[#FFF0F1] text-[11px] transition-all">
+            ✕
+          </button>
+        </div>
+      </td>
+      <td className="border-b border-r border-[#E5E8EB] px-1.5 py-1.5">
+        <EditableCell value={record.note ?? ''} placeholder="메모" onSave={handleNote} />
+      </td>
+      <td className="border-b border-r border-[#E5E8EB] px-2 py-1.5">
+        <AttendanceCell attendance={record.attendance} onChange={handleAttendance} />
+      </td>
+      <td className="border-b border-r border-[#E5E8EB] px-2 py-1.5">
+        <HomeworkCell status={record.homework_status} onChange={handleHomework} />
+      </td>
+      {columns.map(col => (
+        <td key={col.id} className="min-w-[128px] w-[128px] border-b border-r border-[#E5E8EB] px-2 py-1.5">
+          <ResultCellWrapper
+            studentId={student.id}
+            colId={col.id}
+            result={record.id ? resultMap[`${record.id}:${col.id}`] : undefined}
+            onResultChange={onResultChange}
+          />
+        </td>
+      ))}
+    </SortableStudentRow>
+  )
+}, (prev, next) => {
+  if (prev.student !== next.student) return false
+  if (prev.record !== next.record) return false
+  if (prev.columns !== next.columns) return false
+  if (prev.sent !== next.sent) return false
+  if (prev.onAttendanceChange !== next.onAttendanceChange) return false
+  if (prev.onHomeworkChange !== next.onHomeworkChange) return false
+  if (prev.onResultChange !== next.onResultChange) return false
+  if (prev.onNoteChange !== next.onNoteChange) return false
+  if (prev.onCopyMessage !== next.onCopyMessage) return false
+  if (prev.onDeleteClick !== next.onDeleteClick) return false
+  // 이 학생의 결과만 비교
+  if (prev.record.id) {
+    for (const col of prev.columns) {
+      if (prev.resultMap[`${prev.record.id}:${col.id}`] !== next.resultMap[`${next.record.id}:${col.id}`]) return false
+    }
+  }
+  return true
+})
 
 /* ─────────────────── Sortable Student Row ─────────────────── */
 
@@ -516,7 +613,7 @@ export default function SessionView({ session, students: initialStudents, initia
   )
 
   /* ── ensureRecord ── */
-  async function ensureRecord(studentId: string): Promise<StudentRecord | null> {
+  const ensureRecord = useCallback(async (studentId: string): Promise<StudentRecord | null> => {
     const existing = recordMapRef.current[studentId]
     if (existing?.id) return existing
     const { data, error } = await supabase
@@ -531,35 +628,35 @@ export default function SessionView({ session, students: initialStudents, initia
     recordMapRef.current[studentId] = record
     setRecordMap(prev => ({ ...prev, [studentId]: record }))
     return record
-  }
+  }, [supabase, session.id])
 
   /* ── 출결 / 숙제 / 텍스트 셀 ── */
-  async function handleAttendanceChange(student: Student, value: 'present' | 'absent' | 'late') {
-    const record = await ensureRecord(student.id)
+  const handleAttendanceChange = useCallback(async (studentId: string, value: 'present' | 'absent' | 'late') => {
+    const record = await ensureRecord(studentId)
     if (!record) return
-    setRecordMap(prev => ({ ...prev, [student.id]: { ...record, attendance: value } }))
+    setRecordMap(prev => ({ ...prev, [studentId]: { ...record, attendance: value } }))
     await supabase.from('student_records').update({ attendance: value }).eq('id', record.id)
-  }
+  }, [ensureRecord, supabase])
 
-  async function handleHomeworkStatusChange(student: Student, value: 'done' | 'undone') {
-    const record = await ensureRecord(student.id)
+  const handleHomeworkStatusChange = useCallback(async (studentId: string, value: 'done' | 'undone') => {
+    const record = await ensureRecord(studentId)
     if (!record) return
-    setRecordMap(prev => ({ ...prev, [student.id]: { ...record, homework_status: value } }))
+    setRecordMap(prev => ({ ...prev, [studentId]: { ...record, homework_status: value } }))
     await supabase.from('student_records').update({ homework_status: value }).eq('id', record.id)
-  }
+  }, [ensureRecord, supabase])
 
-  async function handleRecordTextChange(student: Student, field: 'next_homework' | 'note', value: string) {
-    const record = await ensureRecord(student.id)
+  const handleRecordNoteChange = useCallback(async (studentId: string, value: string) => {
+    const record = await ensureRecord(studentId)
     if (!record) return
-    setRecordMap(prev => ({ ...prev, [student.id]: { ...record, [field]: value } }))
-    await supabase.from('student_records').update({ [field]: value }).eq('id', record.id)
-  }
+    setRecordMap(prev => ({ ...prev, [studentId]: { ...record, note: value } }))
+    await supabase.from('student_records').update({ note: value }).eq('id', record.id)
+  }, [ensureRecord, supabase])
 
   /* ── 테스트 결과 ── */
-  async function handleResultChange(student: Student, column: TestColumn, value: string) {
-    const record = await ensureRecord(student.id)
+  const handleResultChange = useCallback(async (studentId: string, colId: string, value: string) => {
+    const record = await ensureRecord(studentId)
     if (!record?.id) return
-    const key = `${record.id}:${column.id}`
+    const key = `${record.id}:${colId}`
     const existing = resultMapRef.current[key]
     if (!value.trim()) {
       if (existing?.id) {
@@ -572,13 +669,13 @@ export default function SessionView({ session, students: initialStudents, initia
       ...prev,
       [key]: existing
         ? { ...existing, result: value }
-        : { id: '', student_record_id: record.id, test_column_id: column.id, result: value },
+        : { id: '', student_record_id: record.id, test_column_id: colId, result: value },
     }))
     if (existing?.id) {
       await supabase.from('test_results').update({ result: value }).eq('id', existing.id)
     } else {
       const { data } = await supabase.from('test_results')
-        .upsert({ student_record_id: record.id, test_column_id: column.id, result: value }, { onConflict: 'student_record_id,test_column_id' })
+        .upsert({ student_record_id: record.id, test_column_id: colId, result: value }, { onConflict: 'student_record_id,test_column_id' })
         .select().single()
       if (data) {
         const result = data as TestResult
@@ -586,7 +683,7 @@ export default function SessionView({ session, students: initialStudents, initia
         setResultMap(prev => ({ ...prev, [key]: result }))
       }
     }
-  }
+  }, [ensureRecord, supabase])
 
   /* ── 학생 삭제 ── */
   async function handleDeleteStudent() {
@@ -667,43 +764,47 @@ export default function SessionView({ session, students: initialStudents, initia
     setDeleteColumnTarget(null)
   }
 
-  /* ── 컬럼 DnD ── */
-  function handleColDragStart(e: DragStartEvent) {
-    setActiveColumn(columns.find(c => c.id === e.active.id) ?? null)
+  /* ── DnD 통합 핸들러 ── */
+  function handleDragStart(e: DragStartEvent) {
+    const id = String(e.active.id)
+    if (columns.some(c => c.id === id)) setActiveColumn(columns.find(c => c.id === id) ?? null)
+    else setActiveStudent(students.find(s => s.id === id) ?? null)
   }
-  async function handleColDragEnd(e: DragEndEvent) {
+  async function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e
     setActiveColumn(null)
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    const reordered = arrayMove(columns, columns.findIndex(c => c.id === active.id), columns.findIndex(c => c.id === over.id))
-    setColumns(reordered)
-    await Promise.all(reordered.map((col, i) => supabase.from('test_columns').update({ order_num: i }).eq('id', col.id)))
-  }
-
-  /* ── 행(학생) DnD ── */
-  function handleRowDragStart(e: DragStartEvent) {
-    setActiveStudent(students.find(s => s.id === e.active.id) ?? null)
-  }
-  async function handleRowDragEnd(e: DragEndEvent) {
     setActiveStudent(null)
-    const { active, over } = e
     if (!over || active.id === over.id) return
-    const reordered = arrayMove(students, students.findIndex(s => s.id === active.id), students.findIndex(s => s.id === over.id))
-    setStudents(reordered)
-    await Promise.all(reordered.map((s, i) => supabase.from('students').update({ order_num: i + 1 }).eq('id', s.id)))
+    const id = String(active.id)
+    if (columns.some(c => c.id === id)) {
+      const reordered = arrayMove(columns, columns.findIndex(c => c.id === id), columns.findIndex(c => c.id === String(over.id)))
+      setColumns(reordered)
+      await Promise.all(reordered.map((col, i) => supabase.from('test_columns').update({ order_num: i }).eq('id', col.id)))
+    } else {
+      const reordered = arrayMove(students, students.findIndex(s => s.id === id), students.findIndex(s => s.id === String(over.id)))
+      setStudents(reordered)
+      await Promise.all(reordered.map((s, i) => supabase.from('students').update({ order_num: i + 1 }).eq('id', s.id)))
+    }
   }
 
   /* ── 공통 다음 숙제 저장 ── */
-  async function handleNextHomeworkSave(value: string) {
+  const handleNextHomeworkSave = useCallback(async (value: string) => {
     setNextHomework(value)
     await supabase.from('sessions').update({ next_homework: value }).eq('id', session.id)
-  }
+  }, [supabase, session.id])
+
+  // prevHomework를 ref로 유지 → handleCopyMessage를 안정적으로 유지
+  const prevHomeworkRef = useRef(prevHomework)
+  prevHomeworkRef.current = prevHomework
 
   /* ── 문자 복사 + 발송 체크 토글 ── */
-  async function handleCopyMessage(student: Student) {
-    const record = getRecord(student.id)
+  const handleCopyMessage = useCallback(async (student: Student) => {
+    const record = recordMapRef.current[student.id] ?? {
+      id: '', session_id: session.id, student_id: student.id,
+      attendance: 'present' as const, homework_status: 'done' as const, next_homework: null, note: null,
+    }
     const firstName = student.name.length > 1 ? student.name.slice(1) : student.name
-    const msg = generateMessage(firstName, columnsRef.current, record.id, resultMapRef.current, prevHomework, record.homework_status)
+    const msg = generateMessage(firstName, columnsRef.current, record.id, resultMapRef.current, prevHomeworkRef.current, record.homework_status)
     await navigator.clipboard.writeText(msg)
     if (student.kakao_chat_url) {
       window.open(student.kakao_chat_url, '_blank')
@@ -715,7 +816,7 @@ export default function SessionView({ session, students: initialStudents, initia
       localStorage.setItem(`sent_${session.id}`, JSON.stringify([...next]))
       return next
     })
-  }
+  }, [session.id])
 
   /* ── Helpers ── */
   function getRecord(studentId: string): StudentRecord {
@@ -724,11 +825,6 @@ export default function SessionView({ session, students: initialStudents, initia
       attendance: 'present', homework_status: 'done', next_homework: null, note: null,
     }
   }
-  function getResult(recordId: string, colId: string): TestResult | undefined {
-    if (!recordId) return undefined
-    return resultMap[`${recordId}:${colId}`]
-  }
-
   /* ─────────────────── Render ─────────────────── */
   return (
     <div className="min-h-screen bg-[#F5F6F8] flex flex-col pb-14">
@@ -791,129 +887,77 @@ export default function SessionView({ session, students: initialStudents, initia
         />
       </div>
 
-      {/* ── 테이블 (행 DnD 외부 컨텍스트) ── */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto">
-        <DndContext id="row-dnd" sensors={sensors} collisionDetection={closestCenter}
-          onDragStart={handleRowDragStart} onDragEnd={handleRowDragEnd}>
-          <SortableContext items={students.map(s => s.id)} strategy={verticalListSortingStrategy}>
-
-            {/* 열 DnD 내부 컨텍스트 */}
-            <DndContext id="col-dnd" sensors={sensors} collisionDetection={closestCenter}
-              onDragStart={handleColDragStart} onDragEnd={handleColDragEnd}>
+      {/* ── 테이블 ── */}
+      <DndContext id="session-dnd" sensors={sensors} collisionDetection={closestCenter}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="flex-1 overflow-x-auto overflow-y-auto">
+          <table className="border-collapse bg-white"
+            style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
+            <thead>
               <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
-
-                <table className="border-collapse bg-white"
-                  style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
-                  <thead>
-                    <tr>
-                      {/* 드래그 핸들 헤더 */}
-                      <th className="sticky left-0 z-20 w-9 min-w-[36px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB]" />
-                      {/* 이름 */}
-                      <th className="sticky left-9 z-20 w-[108px] min-w-[108px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">이름</th>
-                      <th className="w-32 min-w-[128px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">특이사항</th>
-                      <th className="w-20 min-w-[80px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">출결</th>
-                      <th className="w-24 min-w-[96px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">이전 숙제</th>
-                      {/* 동적 컬럼 헤더 */}
-                      {columns.map(col => (
-                        <SortableColumnHeader key={col.id} column={col}
-                          onEdit={() => { setEditingColumn(col); setShowColumnModal(true) }}
-                          onDelete={() => setDeleteColumnTarget(col)} />
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {students.length === 0 && (
-                      <tr>
-                        <td colSpan={5 + columns.length}
-                          className="py-16 text-center text-[14px] text-[#ADB5BD]">
-                          학생을 추가해주세요.
-                        </td>
-                      </tr>
-                    )}
-                    {students.map(student => {
-                      const record = getRecord(student.id)
-                      return (
-                        <SortableStudentRow key={student.id} student={student}>
-                          {/* 이름 + 복사/삭제 버튼 */}
-                          <td className="sticky left-9 z-10 bg-white group-hover:bg-[#FAFAFA] border-b border-r border-[#E5E8EB] px-2 py-1.5 w-[136px] min-w-[136px] transition-colors">
-                            <div className="flex items-center gap-0.5 min-w-0">
-                              <span className="text-[14px] font-bold text-[#191F28] truncate flex-1">{student.name}</span>
-                              {/* 문자 복사 + 발송 체크 */}
-                              <button
-                                type="button"
-                                onClick={() => handleCopyMessage(student)}
-                                className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[15px] font-bold transition-all ${
-                                  sentSet.has(student.id)
-                                    ? 'text-[#0BB070] bg-[#EDFDF4] hover:bg-[#C6F6E0]'
-                                    : 'text-[#ADB5BD] hover:text-[#3182F6] hover:bg-[#EBF3FF]'
-                                }`}
-                                title={sentSet.has(student.id) ? '발송 완료 (재클릭 시 해제)' : '문자 복사 및 발송 체크'}>
-                                {sentSet.has(student.id) ? '✓' : '📋'}
-                              </button>
-                              {/* 삭제 */}
-                              <button
-                                type="button"
-                                onClick={() => setDeleteStudentTarget(student)}
-                                className="shrink-0 opacity-0 group-hover:opacity-100 w-5 h-5 rounded flex items-center justify-center text-[#ADB5BD] hover:text-[#F04452] hover:bg-[#FFF0F1] text-[11px] transition-all">
-                                ✕
-                              </button>
-                            </div>
-                          </td>
-                          {/* 특이사항 */}
-                          <td className="border-b border-r border-[#E5E8EB] px-1.5 py-1.5">
-                            <EditableCell value={record.note ?? ''} placeholder="메모"
-                              onSave={v => handleRecordTextChange(student, 'note', v)} />
-                          </td>
-                          {/* 출결 */}
-                          <td className="border-b border-r border-[#E5E8EB] px-2 py-1.5">
-                            <AttendanceCell attendance={record.attendance}
-                              onChange={v => handleAttendanceChange(student, v)} />
-                          </td>
-                          {/* 이전 숙제 */}
-                          <td className="border-b border-r border-[#E5E8EB] px-2 py-1.5">
-                            <HomeworkCell status={record.homework_status}
-                              onChange={v => handleHomeworkStatusChange(student, v)} />
-                          </td>
-                          {/* 테스트 결과 */}
-                          {columns.map(col => (
-                            <td key={col.id} className="min-w-[128px] w-[128px] border-b border-r border-[#E5E8EB] px-2 py-1.5">
-                              <ResultCell
-                                value={getResult(record.id, col.id)?.result ?? null}
-                                onSave={v => handleResultChange(student, col, v)} />
-                            </td>
-                          ))}
-                        </SortableStudentRow>
-                      )
-                    })}
-                  </tbody>
-                </table>
-
+                <tr>
+                  {/* 드래그 핸들 헤더 */}
+                  <th className="sticky left-0 z-20 w-9 min-w-[36px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB]" />
+                  {/* 이름 */}
+                  <th className="sticky left-9 z-20 w-[108px] min-w-[108px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">이름</th>
+                  <th className="w-32 min-w-[128px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">특이사항</th>
+                  <th className="w-20 min-w-[80px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">출결</th>
+                  <th className="w-24 min-w-[96px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">이전 숙제</th>
+                  {/* 동적 컬럼 헤더 */}
+                  {columns.map(col => (
+                    <SortableColumnHeader key={col.id} column={col}
+                      onEdit={() => { setEditingColumn(col); setShowColumnModal(true) }}
+                      onDelete={() => setDeleteColumnTarget(col)} />
+                  ))}
+                </tr>
               </SortableContext>
+            </thead>
 
-              {/* 컬럼 드래그 오버레이 */}
-              <DragOverlay>
-                {activeColumn && (
-                  <div className="bg-white border-2 border-[#3182F6] rounded-xl px-3 py-2 shadow-lg text-[12px] font-semibold text-[#3182F6] whitespace-nowrap">
-                    ⠿ {activeColumn.name}
-                  </div>
+            <tbody>
+              <SortableContext items={students.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                {students.length === 0 && (
+                  <tr>
+                    <td colSpan={5 + columns.length}
+                      className="py-16 text-center text-[14px] text-[#ADB5BD]">
+                      학생을 추가해주세요.
+                    </td>
+                  </tr>
                 )}
-              </DragOverlay>
-            </DndContext>
+                {students.map(student => (
+                  <StudentRow
+                    key={student.id}
+                    student={student}
+                    record={getRecord(student.id)}
+                    columns={columns}
+                    resultMap={resultMap}
+                    sent={sentSet.has(student.id)}
+                    onAttendanceChange={handleAttendanceChange}
+                    onHomeworkChange={handleHomeworkStatusChange}
+                    onResultChange={handleResultChange}
+                    onNoteChange={handleRecordNoteChange}
+                    onCopyMessage={handleCopyMessage}
+                    onDeleteClick={setDeleteStudentTarget}
+                  />
+                ))}
+              </SortableContext>
+            </tbody>
+          </table>
+        </div>
 
-          </SortableContext>
-
-          {/* 행 드래그 오버레이 */}
-          <DragOverlay>
-            {activeStudent && (
-              <div className="bg-white border-2 border-[#3182F6] rounded-xl px-4 py-2.5 shadow-xl flex items-center gap-2">
-                <span className="text-[#3182F6] text-[12px]">⠿</span>
-                <span className="text-[14px] font-bold text-[#191F28]">{activeStudent.name}</span>
-              </div>
-            )}
-          </DragOverlay>
-        </DndContext>
-      </div>
+        <DragOverlay>
+          {activeColumn && (
+            <div className="bg-white border-2 border-[#3182F6] rounded-xl px-3 py-2 shadow-lg text-[12px] font-semibold text-[#3182F6] whitespace-nowrap">
+              ⠿ {activeColumn.name}
+            </div>
+          )}
+          {activeStudent && (
+            <div className="bg-white border-2 border-[#3182F6] rounded-xl px-4 py-2.5 shadow-xl flex items-center gap-2">
+              <span className="text-[#3182F6] text-[12px]">⠿</span>
+              <span className="text-[14px] font-bold text-[#191F28]">{activeStudent.name}</span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
 
       {/* ── 모달 ── */}
       {deleteStudentTarget && (

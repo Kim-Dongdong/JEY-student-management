@@ -2,6 +2,7 @@ export type Class = {
   id: string
   name: string
   schedule: string
+  order_num: number
   created_at: string
 }
 

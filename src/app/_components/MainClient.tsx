@@ -10,6 +10,15 @@ import AddSessionModal from './AddSessionModal'
 import ManageStudentsModal from './ManageStudentsModal'
 import BottomNav from './BottomNav'
 import { type Class, type Session } from './types'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, horizontalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface Props {
   initialClasses: Class[]
@@ -120,6 +129,16 @@ export default function MainClient({ initialClasses }: Props) {
 
   const selectedClass = classes.find(c => c.id === selectedId)
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  async function handleClassDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const reordered = arrayMove(classes, classes.findIndex(c => c.id === active.id), classes.findIndex(c => c.id === over.id))
+    setClasses(reordered)
+    await Promise.all(reordered.map((c, i) => supabase.from('classes').update({ order_num: i }).eq('id', c.id)))
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F6F8] pb-14">
 
@@ -154,55 +173,34 @@ export default function MainClient({ initialClasses }: Props) {
       {/* ── 탭 바 ── */}
       <div className="bg-white border-b border-[#E5E8EB]">
         <div className="max-w-5xl mx-auto px-5">
-          <div
-            className="flex items-center overflow-x-auto"
-            style={{ scrollbarWidth: 'none' }}
-          >
-            {classes.map(cls => (
-              <div key={cls.id} className="relative flex items-center shrink-0 group">
+          <DndContext id="class-tab-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleClassDragEnd}>
+            <SortableContext items={classes.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+              <div
+                className="flex items-center overflow-x-auto"
+                style={{ scrollbarWidth: 'none' }}
+              >
+                {classes.map(cls => (
+                  <SortableClassTab
+                    key={cls.id}
+                    cls={cls}
+                    isSelected={selectedId === cls.id}
+                    onSelect={() => setSelectedId(cls.id)}
+                    onDelete={() => setDeleteTarget(cls)}
+                  />
+                ))}
+
+                {/* 반 추가 버튼 */}
                 <button
                   type="button"
-                  onClick={() => setSelectedId(cls.id)}
-                  className={`
-                    flex items-center pl-0 pr-7 py-[14px] whitespace-nowrap
-                    text-[14px] font-medium border-b-2 transition-colors
-                    ${selectedId === cls.id
-                      ? 'border-[#3182F6] text-[#3182F6]'
-                      : 'border-transparent text-[#6B7684] hover:text-[#191F28]'
-                    }
-                  `}
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1 px-4 py-[14px] whitespace-nowrap shrink-0 text-[14px] font-medium text-[#3182F6] hover:text-[#1B6EF3] border-b-2 border-transparent transition-colors"
                 >
-                  <span className="px-4">{cls.name}</span>
-                </button>
-                {/* 삭제(X) 버튼 */}
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(cls)}
-                  className="
-                    absolute right-1 top-1/2 -translate-y-1/2
-                    w-[18px] h-[18px] rounded-full flex items-center justify-center
-                    text-[11px] text-[#ADB5BD]
-                    opacity-0 group-hover:opacity-100
-                    hover:bg-[#F2F4F6] hover:text-[#6B7684]
-                    transition-all
-                  "
-                  title={`${cls.name} 삭제`}
-                >
-                  ✕
+                  <span className="text-[16px] font-light leading-none mb-px">+</span>
+                  반 추가
                 </button>
               </div>
-            ))}
-
-            {/* 반 추가 버튼 */}
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1 px-4 py-[14px] whitespace-nowrap shrink-0 text-[14px] font-medium text-[#3182F6] hover:text-[#1B6EF3] border-b-2 border-transparent transition-colors"
-            >
-              <span className="text-[16px] font-light leading-none mb-px">+</span>
-              반 추가
-            </button>
-          </div>
+            </SortableContext>
+          </DndContext>
         </div>
       </div>
 
@@ -283,6 +281,52 @@ export default function MainClient({ initialClasses }: Props) {
         />
       )}
       <BottomNav />
+    </div>
+  )
+}
+
+/* ── 정렬 가능한 반 탭 ── */
+function SortableClassTab({ cls, isSelected, onSelect, onDelete }: {
+  cls: Class; isSelected: boolean; onSelect: () => void; onDelete: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cls.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="relative flex items-center shrink-0 group"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onClick={onSelect}
+        className={`
+          flex items-center pl-0 pr-7 py-[14px] whitespace-nowrap
+          text-[14px] font-medium border-b-2 transition-colors cursor-grab active:cursor-grabbing
+          ${isSelected
+            ? 'border-[#3182F6] text-[#3182F6]'
+            : 'border-transparent text-[#6B7684] hover:text-[#191F28]'
+          }
+        `}
+      >
+        <span className="px-4">{cls.name}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="
+          absolute right-1 top-1/2 -translate-y-1/2
+          w-[18px] h-[18px] rounded-full flex items-center justify-center
+          text-[11px] text-[#ADB5BD]
+          opacity-0 group-hover:opacity-100
+          hover:bg-[#F2F4F6] hover:text-[#6B7684]
+          transition-all
+        "
+        title={`${cls.name} 삭제`}
+      >
+        ✕
+      </button>
     </div>
   )
 }
