@@ -13,7 +13,8 @@
       "Bash(cd \"C:\\\\Users\\\\Admin\\\\Desktop\\\\학생관리시스템\" && npm run dev)",
       "Bash(npx kill-port:*)",
       "Bash(cd \"C:\\\\Users\\\\computer\\\\Desktop\\\\학생관리시스템\" && npm run build 2>&1)",
-      "Bash(cd \"C:\\\\Users\\\\computer\\\\Desktop\\\\학생관리시스템\" && npm install autoprefixer --save-dev 2>&1)"
+      "Bash(cd \"C:\\\\Users\\\\computer\\\\Desktop\\\\학생관리시스템\" && npm install autoprefixer --save-dev 2>&1)",
+      "Bash(cd:*)"
     ]
   }
 }
