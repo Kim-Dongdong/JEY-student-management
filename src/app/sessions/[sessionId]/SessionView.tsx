@@ -279,8 +279,8 @@ function ResultCellEditor({ anchor, value, onSave, onClose }: {
   onSave: (v: string) => void
   onClose: () => void
 }) {
-  const [customMode, setCustomMode] = useState(false)
   const [draft, setDraft] = useState(value ?? '')
+  const [flipped, setFlipped] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -293,8 +293,17 @@ function ResultCellEditor({ anchor, value, onSave, onClose }: {
     return () => { clearTimeout(t); document.removeEventListener('mousedown', handler) }
   }, [])
 
+  useEffect(() => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect()
+      if (rect.bottom > window.innerHeight) setFlipped(true)
+    }
+  }, [])
+
   const POPUP_W = 196
-  const safeLeft = Math.min(anchor.left, (typeof window !== 'undefined' ? window.innerWidth : 800) - POPUP_W - 8)
+  const winW = typeof window !== 'undefined' ? window.innerWidth : 800
+  const winH = typeof window !== 'undefined' ? window.innerHeight : 800
+  const safeLeft = Math.min(anchor.left, winW - POPUP_W - 8)
 
   function pick(v: string) { onSave(v); onClose() }
 
@@ -302,7 +311,9 @@ function ResultCellEditor({ anchor, value, onSave, onClose }: {
 
   return createPortal(
     <div ref={ref}
-      style={{ position: 'fixed', top: anchor.top + 6, left: safeLeft, width: POPUP_W, zIndex: 9999 }}
+      style={flipped
+        ? { position: 'fixed', bottom: winH - anchor.top + 6, left: safeLeft, width: POPUP_W, zIndex: 9999 }
+        : { position: 'fixed', top: anchor.top + 6, left: safeLeft, width: POPUP_W, zIndex: 9999 }}
       className="bg-white rounded-2xl shadow-2xl border border-[#E5E8EB] overflow-hidden">
       <div className="p-2.5 flex flex-col gap-2">
         {/* 빠른 선택 */}
@@ -313,31 +324,20 @@ function ResultCellEditor({ anchor, value, onSave, onClose }: {
             className="h-10 rounded-xl bg-[#FFF0F1] text-[#F04452] text-[16px] font-extrabold border border-[#FBBCC0] hover:bg-[#FFD9DC] transition-colors">X</button>
         </div>
         {/* 구분선 */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-px bg-[#F2F4F6]" />
-          {!customMode && (
-            <button type="button" onClick={() => setCustomMode(true)}
-              className="text-[11px] text-[#ADB5BD] hover:text-[#3182F6] font-medium transition-colors px-1">
-              직접 입력
-            </button>
+        <div className="h-px bg-[#F2F4F6]" />
+        {/* 직접 입력 (항상 표시) */}
+        <div className="flex gap-1">
+          <input autoFocus value={draft}
+            onChange={e => setDraft(e.target.value)}
+            placeholder="P(74/80), 수요일…"
+            onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) pick(draft.trim()); if (e.key === 'Escape') onClose() }}
+            className="flex-1 h-9 px-3 text-[13px] border border-[#E5E8EB] rounded-xl bg-[#F9FAFB] outline-none focus:border-[#3182F6] focus:bg-white transition-all"
+          />
+          {draft.trim() && (
+            <button type="button" onClick={() => pick(draft.trim())}
+              className="h-9 px-3 rounded-xl bg-[#3182F6] text-white text-[13px] font-bold hover:bg-[#1B6EF3] transition-colors">↵</button>
           )}
-          <div className="flex-1 h-px bg-[#F2F4F6]" />
         </div>
-        {/* 직접 입력 */}
-        {customMode && (
-          <div className="flex gap-1">
-            <input autoFocus value={draft}
-              onChange={e => setDraft(e.target.value)}
-              placeholder="P(74/80), 수요일…"
-              onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) pick(draft.trim()); if (e.key === 'Escape') onClose() }}
-              className="flex-1 h-9 px-3 text-[13px] border border-[#E5E8EB] rounded-xl bg-[#F9FAFB] outline-none focus:border-[#3182F6] focus:bg-white transition-all"
-            />
-            {draft.trim() && (
-              <button type="button" onClick={() => pick(draft.trim())}
-                className="h-9 px-3 rounded-xl bg-[#3182F6] text-white text-[13px] font-bold hover:bg-[#1B6EF3] transition-colors">↵</button>
-            )}
-          </div>
-        )}
         {/* 지우기 */}
         {value && (
           <button type="button" onClick={() => pick('')}
