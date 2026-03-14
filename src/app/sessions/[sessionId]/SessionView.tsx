@@ -764,30 +764,27 @@ export default function SessionView({ session, students: initialStudents, initia
     setDeleteColumnTarget(null)
   }
 
-  /* ── 컬럼 DnD ── */
-  function handleColDragStart(e: DragStartEvent) {
-    setActiveColumn(columns.find(c => c.id === e.active.id) ?? null)
+  /* ── DnD 통합 핸들러 ── */
+  function handleDragStart(e: DragStartEvent) {
+    const id = String(e.active.id)
+    if (columns.some(c => c.id === id)) setActiveColumn(columns.find(c => c.id === id) ?? null)
+    else setActiveStudent(students.find(s => s.id === id) ?? null)
   }
-  async function handleColDragEnd(e: DragEndEvent) {
+  async function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e
     setActiveColumn(null)
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    const reordered = arrayMove(columns, columns.findIndex(c => c.id === active.id), columns.findIndex(c => c.id === over.id))
-    setColumns(reordered)
-    await Promise.all(reordered.map((col, i) => supabase.from('test_columns').update({ order_num: i }).eq('id', col.id)))
-  }
-
-  /* ── 행(학생) DnD ── */
-  function handleRowDragStart(e: DragStartEvent) {
-    setActiveStudent(students.find(s => s.id === e.active.id) ?? null)
-  }
-  async function handleRowDragEnd(e: DragEndEvent) {
     setActiveStudent(null)
-    const { active, over } = e
     if (!over || active.id === over.id) return
-    const reordered = arrayMove(students, students.findIndex(s => s.id === active.id), students.findIndex(s => s.id === over.id))
-    setStudents(reordered)
-    await Promise.all(reordered.map((s, i) => supabase.from('students').update({ order_num: i + 1 }).eq('id', s.id)))
+    const id = String(active.id)
+    if (columns.some(c => c.id === id)) {
+      const reordered = arrayMove(columns, columns.findIndex(c => c.id === id), columns.findIndex(c => c.id === String(over.id)))
+      setColumns(reordered)
+      await Promise.all(reordered.map((col, i) => supabase.from('test_columns').update({ order_num: i }).eq('id', col.id)))
+    } else {
+      const reordered = arrayMove(students, students.findIndex(s => s.id === id), students.findIndex(s => s.id === String(over.id)))
+      setStudents(reordered)
+      await Promise.all(reordered.map((s, i) => supabase.from('students').update({ order_num: i + 1 }).eq('id', s.id)))
+    }
   }
 
   /* ── 공통 다음 숙제 저장 ── */
@@ -890,90 +887,77 @@ export default function SessionView({ session, students: initialStudents, initia
         />
       </div>
 
-      {/* ── 테이블 (행 DnD 외부 컨텍스트) ── */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto">
-        <DndContext id="row-dnd" sensors={sensors} collisionDetection={closestCenter}
-          onDragStart={handleRowDragStart} onDragEnd={handleRowDragEnd}>
-          <SortableContext items={students.map(s => s.id)} strategy={verticalListSortingStrategy}>
-
-            {/* 열 DnD 내부 컨텍스트 */}
-            <DndContext id="col-dnd" sensors={sensors} collisionDetection={closestCenter}
-              onDragStart={handleColDragStart} onDragEnd={handleColDragEnd}>
+      {/* ── 테이블 ── */}
+      <DndContext id="session-dnd" sensors={sensors} collisionDetection={closestCenter}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="flex-1 overflow-x-auto overflow-y-auto">
+          <table className="border-collapse bg-white"
+            style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
+            <thead>
               <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
-
-                <table className="border-collapse bg-white"
-                  style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
-                  <thead>
-                    <tr>
-                      {/* 드래그 핸들 헤더 */}
-                      <th className="sticky left-0 z-20 w-9 min-w-[36px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB]" />
-                      {/* 이름 */}
-                      <th className="sticky left-9 z-20 w-[108px] min-w-[108px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">이름</th>
-                      <th className="w-32 min-w-[128px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">특이사항</th>
-                      <th className="w-20 min-w-[80px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">출결</th>
-                      <th className="w-24 min-w-[96px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">이전 숙제</th>
-                      {/* 동적 컬럼 헤더 */}
-                      {columns.map(col => (
-                        <SortableColumnHeader key={col.id} column={col}
-                          onEdit={() => { setEditingColumn(col); setShowColumnModal(true) }}
-                          onDelete={() => setDeleteColumnTarget(col)} />
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {students.length === 0 && (
-                      <tr>
-                        <td colSpan={5 + columns.length}
-                          className="py-16 text-center text-[14px] text-[#ADB5BD]">
-                          학생을 추가해주세요.
-                        </td>
-                      </tr>
-                    )}
-                    {students.map(student => (
-                      <StudentRow
-                        key={student.id}
-                        student={student}
-                        record={getRecord(student.id)}
-                        columns={columns}
-                        resultMap={resultMap}
-                        sent={sentSet.has(student.id)}
-                        onAttendanceChange={handleAttendanceChange}
-                        onHomeworkChange={handleHomeworkStatusChange}
-                        onResultChange={handleResultChange}
-                        onNoteChange={handleRecordNoteChange}
-                        onCopyMessage={handleCopyMessage}
-                        onDeleteClick={setDeleteStudentTarget}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-
+                <tr>
+                  {/* 드래그 핸들 헤더 */}
+                  <th className="sticky left-0 z-20 w-9 min-w-[36px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB]" />
+                  {/* 이름 */}
+                  <th className="sticky left-9 z-20 w-[108px] min-w-[108px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">이름</th>
+                  <th className="w-32 min-w-[128px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-3 py-2.5 text-[12px] font-semibold text-[#6B7684] text-left">특이사항</th>
+                  <th className="w-20 min-w-[80px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">출결</th>
+                  <th className="w-24 min-w-[96px] bg-[#F9FAFB] border-b border-r border-[#E5E8EB] px-2 py-2.5 text-[12px] font-semibold text-[#6B7684] text-center">이전 숙제</th>
+                  {/* 동적 컬럼 헤더 */}
+                  {columns.map(col => (
+                    <SortableColumnHeader key={col.id} column={col}
+                      onEdit={() => { setEditingColumn(col); setShowColumnModal(true) }}
+                      onDelete={() => setDeleteColumnTarget(col)} />
+                  ))}
+                </tr>
               </SortableContext>
+            </thead>
 
-              {/* 컬럼 드래그 오버레이 */}
-              <DragOverlay>
-                {activeColumn && (
-                  <div className="bg-white border-2 border-[#3182F6] rounded-xl px-3 py-2 shadow-lg text-[12px] font-semibold text-[#3182F6] whitespace-nowrap">
-                    ⠿ {activeColumn.name}
-                  </div>
+            <tbody>
+              <SortableContext items={students.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                {students.length === 0 && (
+                  <tr>
+                    <td colSpan={5 + columns.length}
+                      className="py-16 text-center text-[14px] text-[#ADB5BD]">
+                      학생을 추가해주세요.
+                    </td>
+                  </tr>
                 )}
-              </DragOverlay>
-            </DndContext>
+                {students.map(student => (
+                  <StudentRow
+                    key={student.id}
+                    student={student}
+                    record={getRecord(student.id)}
+                    columns={columns}
+                    resultMap={resultMap}
+                    sent={sentSet.has(student.id)}
+                    onAttendanceChange={handleAttendanceChange}
+                    onHomeworkChange={handleHomeworkStatusChange}
+                    onResultChange={handleResultChange}
+                    onNoteChange={handleRecordNoteChange}
+                    onCopyMessage={handleCopyMessage}
+                    onDeleteClick={setDeleteStudentTarget}
+                  />
+                ))}
+              </SortableContext>
+            </tbody>
+          </table>
+        </div>
 
-          </SortableContext>
-
-          {/* 행 드래그 오버레이 */}
-          <DragOverlay>
-            {activeStudent && (
-              <div className="bg-white border-2 border-[#3182F6] rounded-xl px-4 py-2.5 shadow-xl flex items-center gap-2">
-                <span className="text-[#3182F6] text-[12px]">⠿</span>
-                <span className="text-[14px] font-bold text-[#191F28]">{activeStudent.name}</span>
-              </div>
-            )}
-          </DragOverlay>
-        </DndContext>
-      </div>
+        <DragOverlay>
+          {activeColumn && (
+            <div className="bg-white border-2 border-[#3182F6] rounded-xl px-3 py-2 shadow-lg text-[12px] font-semibold text-[#3182F6] whitespace-nowrap">
+              ⠿ {activeColumn.name}
+            </div>
+          )}
+          {activeStudent && (
+            <div className="bg-white border-2 border-[#3182F6] rounded-xl px-4 py-2.5 shadow-xl flex items-center gap-2">
+              <span className="text-[#3182F6] text-[12px]">⠿</span>
+              <span className="text-[14px] font-bold text-[#191F28]">{activeStudent.name}</span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
 
       {/* ── 모달 ── */}
       {deleteStudentTarget && (
