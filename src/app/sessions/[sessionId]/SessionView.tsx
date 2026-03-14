@@ -300,7 +300,7 @@ function ResultCellEditor({ anchor, value, onSave, onClose }: {
     }
   }, [])
 
-  const POPUP_W = 196
+  const POPUP_W = 260
   const winW = typeof window !== 'undefined' ? window.innerWidth : 800
   const winH = typeof window !== 'undefined' ? window.innerHeight : 800
   const safeLeft = Math.min(anchor.left, winW - POPUP_W - 8)
@@ -315,27 +315,22 @@ function ResultCellEditor({ anchor, value, onSave, onClose }: {
         ? { position: 'fixed', bottom: winH - anchor.top + 6, left: safeLeft, width: POPUP_W, zIndex: 9999 }
         : { position: 'fixed', top: anchor.top + 6, left: safeLeft, width: POPUP_W, zIndex: 9999 }}
       className="bg-white rounded-2xl shadow-2xl border border-[#E5E8EB] overflow-hidden">
-      <div className="p-2.5 flex flex-col gap-2">
-        {/* 빠른 선택 */}
-        <div className="grid grid-cols-2 gap-1.5">
+      <div className="p-2.5 flex flex-col gap-1.5">
+        {/* 한 줄: P | X | 입력칸 | ↵ */}
+        <div className="flex gap-1.5">
           <button type="button" onClick={() => pick('P')}
-            className="h-10 rounded-xl bg-[#EDFDF4] text-[#0BB070] text-[16px] font-extrabold border border-[#B3EFCF] hover:bg-[#D4FAE9] transition-colors">P</button>
+            className="h-9 w-10 shrink-0 rounded-xl bg-[#EDFDF4] text-[#0BB070] text-[15px] font-extrabold border border-[#B3EFCF] hover:bg-[#D4FAE9] transition-colors">P</button>
           <button type="button" onClick={() => pick('X')}
-            className="h-10 rounded-xl bg-[#FFF0F1] text-[#F04452] text-[16px] font-extrabold border border-[#FBBCC0] hover:bg-[#FFD9DC] transition-colors">X</button>
-        </div>
-        {/* 구분선 */}
-        <div className="h-px bg-[#F2F4F6]" />
-        {/* 직접 입력 (항상 표시) */}
-        <div className="flex gap-1">
+            className="h-9 w-10 shrink-0 rounded-xl bg-[#FFF0F1] text-[#F04452] text-[15px] font-extrabold border border-[#FBBCC0] hover:bg-[#FFD9DC] transition-colors">X</button>
           <input autoFocus value={draft}
             onChange={e => setDraft(e.target.value)}
-            placeholder="P(74/80), 수요일…"
+            placeholder="직접 입력…"
             onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) pick(draft.trim()); if (e.key === 'Escape') onClose() }}
-            className="flex-1 h-9 px-3 text-[13px] border border-[#E5E8EB] rounded-xl bg-[#F9FAFB] outline-none focus:border-[#3182F6] focus:bg-white transition-all"
+            className="flex-1 h-9 px-3 text-[13px] border border-[#E5E8EB] rounded-xl bg-[#F9FAFB] outline-none focus:border-[#3182F6] focus:bg-white transition-all min-w-0"
           />
           {draft.trim() && (
             <button type="button" onClick={() => pick(draft.trim())}
-              className="h-9 px-3 rounded-xl bg-[#3182F6] text-white text-[13px] font-bold hover:bg-[#1B6EF3] transition-colors">↵</button>
+              className="h-9 w-9 shrink-0 rounded-xl bg-[#3182F6] text-white text-[13px] font-bold hover:bg-[#1B6EF3] transition-colors">↵</button>
           )}
         </div>
         {/* 지우기 */}
