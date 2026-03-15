@@ -235,7 +235,7 @@ export default function StudentHistoryModal({ studentId, studentName, onClose }:
               <textarea
                 value={memo}
                 onChange={e => handleMemoChange(e.target.value)}
-                placeholder={"학생에 대한 메모를 자유롭게 남겨보세요.\n예) 수학 기초 약함, 어휘력 우수, 3월부터 다음 단계로 이동 예정"}
+                placeholder={"학생에 대한 메모를 자유롭게 남겨보세요.\n예) 영어 기초 약함, 어휘력 우수, 3월부터 다른 반으로 이동 예정"}
                 rows={3}
                 className="w-full px-3 py-2.5 rounded-xl border border-[#E5E8EB] bg-[#F9FAFB] text-[13px] text-[#191F28] placeholder:text-[#C5CCD6] outline-none focus:border-[#3182F6] focus:bg-white focus:ring-2 focus:ring-[#3182F6]/10 resize-none transition-all leading-relaxed"
               />
