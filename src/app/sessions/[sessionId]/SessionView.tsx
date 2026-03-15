@@ -37,6 +37,7 @@ type Session = {
   date: string
   time_range: string | null
   next_homework: string | null
+  memo: string | null
   classes: { id: string; name: string; schedule: string }
 }
 
@@ -588,6 +589,9 @@ export default function SessionView({ session, students: initialStudents, initia
   // 공통 다음 숙제
   const [nextHomework, setNextHomework] = useState(session.next_homework ?? '')
 
+  // 수업 메모
+  const [sessionMemo, setSessionMemo] = useState(session.memo ?? '')
+
   // 수업 입장 시 하단 네비에 추가
   useEffect(() => { addNavSession(session.id) }, [session.id])
 
@@ -801,6 +805,12 @@ export default function SessionView({ session, students: initialStudents, initia
     await supabase.from('sessions').update({ next_homework: value }).eq('id', session.id)
   }, [supabase, session.id])
 
+  /* ── 수업 메모 저장 ── */
+  const handleSessionMemoSave = useCallback(async (value: string) => {
+    setSessionMemo(value)
+    await supabase.from('sessions').update({ memo: value || null }).eq('id', session.id)
+  }, [supabase, session.id])
+
   // prevHomework를 ref로 유지 → handleCopyMessage를 안정적으로 유지
   const prevHomeworkRef = useRef(prevHomework)
   prevHomeworkRef.current = prevHomework
@@ -896,6 +906,16 @@ export default function SessionView({ session, students: initialStudents, initia
           value={nextHomework}
           placeholder="공통 숙제를 입력하세요"
           onSave={handleNextHomeworkSave}
+        />
+      </div>
+
+      {/* ── 수업 메모 ── */}
+      <div className="bg-[#F0F4FF] border-b border-[#C7D7FD] px-5 py-2 flex items-center gap-3">
+        <span className="text-[12px] font-semibold text-[#3730A3] shrink-0">수업 메모</span>
+        <EditableCell
+          value={sessionMemo}
+          placeholder="오늘 수업에 대한 메모를 남겨보세요"
+          onSave={handleSessionMemoSave}
         />
       </div>
 
