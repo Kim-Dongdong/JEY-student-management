@@ -33,7 +33,9 @@ CREATE TABLE sessions (
 
 -- 기존 DB에 컬럼 추가할 때 실행:
 -- ALTER TABLE sessions ADD COLUMN IF NOT EXISTS time_range TEXT;
+-- ALTER TABLE sessions ADD COLUMN IF NOT EXISTS memo TEXT;
 -- ALTER TABLE classes ADD COLUMN IF NOT EXISTS order_num INTEGER NOT NULL DEFAULT 0;
+-- ALTER TABLE students ADD COLUMN IF NOT EXISTS memo TEXT;
 
 -- 테스트 항목 테이블 (회차별 동적 컬럼)
 -- 예: "단어 TEST", "선택형 테스트", "7대 영역 7~10"

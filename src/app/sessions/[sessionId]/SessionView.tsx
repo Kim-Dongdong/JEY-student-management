@@ -27,6 +27,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import ColumnModal from './ColumnModal'
 import BottomNav, { addNavSession } from '@/app/_components/BottomNav'
+import StudentHistoryModal from '@/app/_components/StudentHistoryModal'
 
 /* ─────────────────── Types ─────────────────── */
 
@@ -36,6 +37,7 @@ type Session = {
   date: string
   time_range: string | null
   next_homework: string | null
+  memo: string | null
   classes: { id: string; name: string; schedule: string }
 }
 
@@ -420,7 +422,7 @@ const SortableColumnHeader = memo(function SortableColumnHeader({ column, onEdit
 /* ─────────────────── Memoized Student Row ─────────────────── */
 
 const StudentRow = memo(function StudentRow({ student, record, columns, resultMap, sent,
-  onAttendanceChange, onHomeworkChange, onResultChange, onNoteChange, onCopyMessage, onDeleteClick,
+  onAttendanceChange, onHomeworkChange, onResultChange, onNoteChange, onCopyMessage, onDeleteClick, onViewHistory,
 }: {
   student: Student
   record: StudentRecord
@@ -433,18 +435,23 @@ const StudentRow = memo(function StudentRow({ student, record, columns, resultMa
   onNoteChange: (studentId: string, v: string) => void
   onCopyMessage: (student: Student) => void
   onDeleteClick: (student: Student) => void
+  onViewHistory: (student: Student) => void
 }) {
   const handleAttendance = useCallback((v: 'present' | 'absent' | 'late') => onAttendanceChange(student.id, v), [student.id, onAttendanceChange])
   const handleHomework = useCallback((v: 'done' | 'undone') => onHomeworkChange(student.id, v), [student.id, onHomeworkChange])
   const handleNote = useCallback((v: string) => onNoteChange(student.id, v), [student.id, onNoteChange])
   const handleCopy = useCallback(() => onCopyMessage(student), [student, onCopyMessage])
   const handleDelete = useCallback(() => onDeleteClick(student), [student, onDeleteClick])
+  const handleHistory = useCallback(() => onViewHistory(student), [student, onViewHistory])
 
   return (
     <SortableStudentRow student={student}>
       <td className="sticky left-9 z-10 bg-white group-hover:bg-[#FAFAFA] border-b border-r border-[#E5E8EB] px-2 py-1.5 w-[136px] min-w-[136px] transition-colors">
         <div className="flex items-center gap-0.5 min-w-0">
-          <span className="text-[14px] font-bold text-[#191F28] truncate flex-1">{student.name}</span>
+          <button type="button" onClick={handleHistory}
+            className="text-[14px] font-bold text-[#191F28] truncate flex-1 text-left hover:text-[#3182F6] transition-colors">
+            {student.name}
+          </button>
           <button type="button" onClick={handleCopy}
             className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[15px] font-bold transition-all ${
               sent ? 'text-[#0BB070] bg-[#EDFDF4] hover:bg-[#C6F6E0]'
@@ -491,6 +498,7 @@ const StudentRow = memo(function StudentRow({ student, record, columns, resultMa
   if (prev.onNoteChange !== next.onNoteChange) return false
   if (prev.onCopyMessage !== next.onCopyMessage) return false
   if (prev.onDeleteClick !== next.onDeleteClick) return false
+  if (prev.onViewHistory !== next.onViewHistory) return false
   // 이 학생의 결과만 비교
   if (prev.record.id) {
     for (const col of prev.columns) {
@@ -581,6 +589,9 @@ export default function SessionView({ session, students: initialStudents, initia
   // 공통 다음 숙제
   const [nextHomework, setNextHomework] = useState(session.next_homework ?? '')
 
+  // 수업 메모
+  const [sessionMemo, setSessionMemo] = useState(session.memo ?? '')
+
   // 수업 입장 시 하단 네비에 추가
   useEffect(() => { addNavSession(session.id) }, [session.id])
 
@@ -598,6 +609,7 @@ export default function SessionView({ session, students: initialStudents, initia
   const [deleteColumnTarget, setDeleteColumnTarget] = useState<TestColumn | null>(null)
   const [showColumnModal, setShowColumnModal] = useState(false)
   const [editingColumn, setEditingColumn] = useState<TestColumn | null>(null)
+  const [historyTarget, setHistoryTarget] = useState<Student | null>(null)
 
   // async 핸들러에서 최신 상태 안정적 접근
   const recordMapRef = useRef(recordMap)
@@ -793,11 +805,21 @@ export default function SessionView({ session, students: initialStudents, initia
     await supabase.from('sessions').update({ next_homework: value }).eq('id', session.id)
   }, [supabase, session.id])
 
+  /* ── 수업 메모 저장 ── */
+  const handleSessionMemoSave = useCallback(async (value: string) => {
+    setSessionMemo(value)
+    await supabase.from('sessions').update({ memo: value || null }).eq('id', session.id)
+  }, [supabase, session.id])
+
   // prevHomework를 ref로 유지 → handleCopyMessage를 안정적으로 유지
   const prevHomeworkRef = useRef(prevHomework)
   prevHomeworkRef.current = prevHomework
 
   /* ── 문자 복사 + 발송 체크 토글 ── */
+  const handleViewHistory = useCallback((student: Student) => {
+    setHistoryTarget(student)
+  }, [])
+
   const handleCopyMessage = useCallback(async (student: Student) => {
     const record = recordMapRef.current[student.id] ?? {
       id: '', session_id: session.id, student_id: student.id,
@@ -887,6 +909,16 @@ export default function SessionView({ session, students: initialStudents, initia
         />
       </div>
 
+      {/* ── 수업 메모 ── */}
+      <div className="bg-[#F0F4FF] border-b border-[#C7D7FD] px-5 py-2 flex items-center gap-3">
+        <span className="text-[12px] font-semibold text-[#3730A3] shrink-0">수업 메모</span>
+        <EditableCell
+          value={sessionMemo}
+          placeholder="오늘 수업에 대한 메모를 남겨보세요"
+          onSave={handleSessionMemoSave}
+        />
+      </div>
+
       {/* ── 테이블 ── */}
       <DndContext id="session-dnd" sensors={sensors} collisionDetection={closestCenter}
         onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -937,6 +969,7 @@ export default function SessionView({ session, students: initialStudents, initia
                     onNoteChange={handleRecordNoteChange}
                     onCopyMessage={handleCopyMessage}
                     onDeleteClick={setDeleteStudentTarget}
+                    onViewHistory={handleViewHistory}
                   />
                 ))}
               </SortableContext>
@@ -993,6 +1026,13 @@ export default function SessionView({ session, students: initialStudents, initia
           }
           onClose={() => setDeleteColumnTarget(null)}
           onConfirm={handleColumnDelete}
+        />
+      )}
+      {historyTarget && (
+        <StudentHistoryModal
+          studentId={historyTarget.id}
+          studentName={historyTarget.name}
+          onClose={() => setHistoryTarget(null)}
         />
       )}
       <BottomNav currentSessionId={session.id} />

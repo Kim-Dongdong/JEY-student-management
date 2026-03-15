@@ -11,6 +11,7 @@ import {
   useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import StudentHistoryModal from './StudentHistoryModal'
 
 type Student = {
   id: string
@@ -26,10 +27,11 @@ interface Props {
   onClose: () => void
 }
 
-function SortableStudentItem({ student, onDelete, onKakaoSave }: {
+function SortableStudentItem({ student, onDelete, onKakaoSave, onViewHistory }: {
   student: Student
   onDelete: () => void
   onKakaoSave: (url: string | null) => Promise<void>
+  onViewHistory: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: student.id })
   return (
@@ -47,7 +49,13 @@ function SortableStudentItem({ student, onDelete, onKakaoSave }: {
         ⠿
       </button>
       <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-[15px] font-semibold text-[#191F28]">{student.name}</span>
+        <button
+          type="button"
+          onClick={onViewHistory}
+          className="text-left text-[15px] font-semibold text-[#191F28] hover:text-[#3182F6] transition-colors w-fit"
+        >
+          {student.name}
+        </button>
         {student.note && (
           <span className="text-[12px] text-[#ADB5BD] mt-0.5 truncate">{student.note}</span>
         )}
@@ -87,6 +95,7 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
   const [adding, setAdding] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [historyTarget, setHistoryTarget] = useState<Student | null>(null)
 
   const fetchStudents = useCallback(async () => {
     const { data } = await supabase
@@ -198,6 +207,7 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
                         await supabase.from('students').update({ kakao_chat_url: url }).eq('id', student.id)
                         setStudents(prev => prev.map(s => s.id === student.id ? { ...s, kakao_chat_url: url } : s))
                       }}
+                      onViewHistory={() => setHistoryTarget(student)}
                     />
                   ))}
                 </ul>
@@ -243,6 +253,15 @@ export default function ManageStudentsModal({ classId, className, onClose }: Pro
           </form>
         </div>
       </div>
+
+      {/* 학생 히스토리 */}
+      {historyTarget && (
+        <StudentHistoryModal
+          studentId={historyTarget.id}
+          studentName={historyTarget.name}
+          onClose={() => setHistoryTarget(null)}
+        />
+      )}
 
       {/* 삭제 확인 */}
       {deleteTarget && (
